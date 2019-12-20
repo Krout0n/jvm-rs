@@ -1,15 +1,67 @@
 use std::fs::File;
 use std::io::{BufReader, Read};
 
-struct CPInfo {
-    tag: u8,
-    info: Vec<u8>,
+type u1 = u8;
+type u2 = u16;
+type u4 = u32;
+
+#[derive(Debug, PartialEq)]
+enum RefKind {
+    Field = 0x9,
+    Method,
+    Interface,
+}
+
+use RefKind::*;
+
+impl From<u8> for RefKind {
+    fn from(a: u8) -> Self {
+        match a {
+            0x9 => Field,
+            0xA => Method,
+            0xB => Interface,
+            _ => {
+                eprintln!("{}", a);
+                unreachable!()
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
 enum ConstantPool {
     // u1 tag; u2 name_index;
-    Class(u16),
+    // The value of the name_index item must be a valid index into the constant_pool table.
+    /*
+        #2 = Class              #4             // java/lang/Object
+        ...
+        #4 = Utf8               java/lang/Object
+    */
+    Class(u2),
+    FieldRef {
+        tag: RefKind,
+        class_index: u2,
+        name_and_type_index: u2,
+    },
+    String(u2),
+    Integer(u4), // bytes
+    Float(u4),   // bytes
+    Long {
+        high: u4,
+        low: u4,
+    },
+    Double {
+        high: u4,
+        low: u4,
+    },
+    NameAndType {
+        name_index: u2,
+        descriptor_index: u2,
+    },
+    Utf8 {
+        length: u2,
+        bytes: Vec<u1>,
+    },
 }
 
 // WIP
@@ -18,16 +70,13 @@ struct ClassFile {
     minor_version: u16,
     major_version: u16,
     constant_pool_count: u16,
+    // For debugging, one constant pool.
     constant_pools: Vec<ConstantPool>,
 }
 
 struct ClassFileReader {
     reader: BufReader<File>,
 }
-
-type u1 = u8;
-type u2 = u16;
-type u4 = u32;
 
 impl ClassFileReader {
     fn new(filename: &str) -> Result<Self, std::io::Error> {
@@ -36,53 +85,98 @@ impl ClassFileReader {
     }
 
     fn read(&mut self) -> Option<ClassFile> {
-        let magic = self.read_4byte();
+        let magic = self.read_u4();
         if magic != 0xCAFEBABE {
             return None;
         }
-        let minor_version = self.read_2byte();
-        let major_version = self.read_2byte();
-        let constant_pool_count = self.read_2byte();
-
+        let minor_version = self.read_u2();
+        let major_version = self.read_u2();
+        let constant_pool_count = self.read_u2();
         let constant_pools = {
             let mut v = vec![];
-            for _ in 0..constant_pool_count {
-                v.push(self.read_constant_pool());
+            for _ in 0..(constant_pool_count - 1) {
+                let pool = self.read_constant_pool();
+                v.push(pool);
             }
             v
         };
-        Some(ClassFile { minor_version, major_version, constant_pool_count, constant_pools})
+        Some(ClassFile {
+            minor_version,
+            major_version,
+            constant_pool_count,
+            constant_pools,
+        })
     }
 
     fn read_constant_pool(&mut self) -> ConstantPool {
         use ConstantPool::*;
-        let tag = self.read_2byte();
+        let tag = self.read_u1();
         match tag {
-            7 => Class(self.read_2byte()),
+            7 => Class(self.read_u2()),
+            9 | 10 | 11 => FieldRef {
+                tag: RefKind::from(tag as u8),
+                class_index: self.read_u2(),
+                name_and_type_index: self.read_u2(),
+            },
+            8 => String(self.read_u2()),
+            3 => Integer(self.read_u4()),
+            4 => Float(self.read_u4()),
+            5 => Long {
+                high: self.read_u4(),
+                low: self.read_u4(),
+            },
+            6 => Double {
+                high: self.read_u4(),
+                low: self.read_u4(),
+            },
+            12 => NameAndType {
+                descriptor_index: self.read_u2(),
+                name_index: self.read_u2(),
+            },
+            1 => {
+                let length = self.read_u2();
+                let bytes = {
+                    let mut v = vec![];
+                    for _ in 0..length {
+                        v.push(self.read_u1());
+                    }
+                    v
+                };
+                Utf8 { length, bytes }
+            }
+            n => {
+                eprintln!("header {:?} is unimplemented.", n);
+                unimplemented!()
+            }
         }
     }
 
-    fn read_4byte(&mut self) -> u32 {
+    fn read_u1(&mut self) -> u1 {
+        let mut buf = [0u8; 1];
+        match self.reader.read(&mut buf) {
+            Ok(_) => buf[0],
+            _ => unimplemented!(),
+        }
+    }
+
+    fn read_u2(&mut self) -> u2 {
+        let mut buf = [0u8; 2];
+        match self.reader.read(&mut buf) {
+            Ok(_) => ((buf[0] as u2) << 8) + buf[1] as u2,
+            _ => unimplemented!(),
+        }
+    }
+
+    fn read_u4(&mut self) -> u4 {
         let mut buf = [0u8; 4];
         match self.reader.read(&mut buf) {
             Ok(_) => {
-                ((buf[0] as u32) << 24)
-                    + ((buf[1] as u32) << 16)
-                    + ((buf[2] as u32) << 8)
-                    + buf[3] as u32
+                ((buf[0] as u4) << 24)
+                    + ((buf[1] as u4) << 16)
+                    + ((buf[2] as u4) << 8)
+                    + buf[3] as u4
             }
-            _ => 0,
-        }
-    }
-
-    fn read_2byte(&mut self) -> u16 {
-        let mut buf = [0u8; 2];
-        match self.reader.read(&mut buf) {
-            Ok(_) => {
-                ((buf[0] as u16) << 8)
-                    + buf[1] as u16
-            }
-            _ => 0,
+            _ => unimplemented!(),
         }
     }
 }
@@ -96,9 +190,14 @@ fn main() -> Result<(), std::io::Error> {
     let filename = std::env::args().nth(1).unwrap();
     let mut class_file_reader = ClassFileReader::new(&filename)?;
     let classfile = class_file_reader.read();
-    println!("{} is Java class file? : {:?}", filename, classfile.is_some());
+    println!(
+        "{} is Java class file? : {:?}",
+        filename,
+        classfile.is_some()
+    );
     if classfile.is_some() {
-        println!("{:?}", classfile.unwrap());
+        let classfile = classfile.unwrap();
+        println!("{:?}", &classfile);
     }
     Ok(())
 }
