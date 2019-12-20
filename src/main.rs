@@ -6,17 +6,28 @@ struct CPInfo {
     info: Vec<u8>,
 }
 
+#[derive(Debug, PartialEq)]
+enum ConstantPool {
+    // u1 tag; u2 name_index;
+    Class(u16),
+}
+
 // WIP
+#[derive(Debug)]
 struct ClassFile {
     minor_version: u16,
     major_version: u16,
     constant_pool_count: u16,
-    cp_info: CPInfo,
+    constant_pools: Vec<ConstantPool>,
 }
 
 struct ClassFileReader {
     reader: BufReader<File>,
 }
+
+type u1 = u8;
+type u2 = u16;
+type u4 = u32;
 
 impl ClassFileReader {
     fn new(filename: &str) -> Result<Self, std::io::Error> {
@@ -24,9 +35,31 @@ impl ClassFileReader {
         Ok(Self { reader })
     }
 
-    fn has_magic(&mut self) -> bool {
+    fn read(&mut self) -> Option<ClassFile> {
         let magic = self.read_4byte();
-        magic == 0xCAFEBABE
+        if magic != 0xCAFEBABE {
+            return None;
+        }
+        let minor_version = self.read_2byte();
+        let major_version = self.read_2byte();
+        let constant_pool_count = self.read_2byte();
+
+        let constant_pools = {
+            let mut v = vec![];
+            for _ in 0..constant_pool_count {
+                v.push(self.read_constant_pool());
+            }
+            v
+        };
+        Some(ClassFile { minor_version, major_version, constant_pool_count, constant_pools})
+    }
+
+    fn read_constant_pool(&mut self) -> ConstantPool {
+        use ConstantPool::*;
+        let tag = self.read_2byte();
+        match tag {
+            7 => Class(self.read_2byte()),
+        }
     }
 
     fn read_4byte(&mut self) -> u32 {
@@ -41,6 +74,17 @@ impl ClassFileReader {
             _ => 0,
         }
     }
+
+    fn read_2byte(&mut self) -> u16 {
+        let mut buf = [0u8; 2];
+        match self.reader.read(&mut buf) {
+            Ok(_) => {
+                ((buf[0] as u16) << 8)
+                    + buf[1] as u16
+            }
+            _ => 0,
+        }
+    }
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -51,6 +95,10 @@ fn main() -> Result<(), std::io::Error> {
     }
     let filename = std::env::args().nth(1).unwrap();
     let mut class_file_reader = ClassFileReader::new(&filename)?;
-    println!("{} is Java class file? : {}", filename, class_file_reader.has_magic());
+    let classfile = class_file_reader.read();
+    println!("{} is Java class file? : {:?}", filename, classfile.is_some());
+    if classfile.is_some() {
+        println!("{:?}", classfile.unwrap());
+    }
     Ok(())
 }
