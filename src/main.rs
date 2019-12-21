@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use std::fs::File;
 use std::io::{BufReader, Read};
 
@@ -60,20 +62,56 @@ enum ConstantPool {
     },
     Utf8 {
         length: u2,
-        bytes: Vec<u1>,
+        bytes: String,
     },
 }
 
-// WIP
 #[derive(Debug)]
 struct ClassFile {
-    minor_version: u16,
-    major_version: u16,
-    constant_pool_count: u16,
-    // For debugging, one constant pool.
+    minor_version: u2,
+    major_version: u2,
+    constant_pool_count: u2,
     constant_pools: Vec<ConstantPool>,
+    access_flags: u2,
+    this_class: u2,
+    super_class: u2,
+    interfaces_count: u2,
+    interfaces: Vec<u2>,
+    fields_count: u2,
+    fields: Vec<FieldInfo>,
+    methods_count: u2,
+    methods: Vec<MethodInfo>,
+    attributes_count: u2,
+    attributes: Vec<AttributeInfo>,
 }
 
+#[derive(Debug)]
+struct FieldInfo {
+    access_flags: u2,
+    name_index: u2,
+    descriptor_index: u2,
+    attributes_count: u2,
+    attributes: Vec<AttributeInfo>,
+}
+
+#[derive(Debug)]
+struct AttributeInfo {
+    attribute_name_index: u2,
+    attribute_length: u4,
+    // u1 info[attribute_length];
+    info: Vec<u1>,
+}
+
+#[derive(Debug)]
+struct MethodInfo {
+    access_flags: u2,
+    name_index: u2,
+    descriptor_index: u2,
+    attributes_count: u2,
+    attributes: Vec<AttributeInfo>,
+}
+
+#[derive(Debug)]
 struct ClassFileReader {
     reader: BufReader<File>,
 }
@@ -100,12 +138,109 @@ impl ClassFileReader {
             }
             v
         };
+        let access_flags = self.read_u2();
+        let this_class = self.read_u2();
+        let super_class = self.read_u2();
+        let interfaces_count = self.read_u2();
+        let interfaces = {
+            let mut v = vec![];
+            for _ in 0..interfaces_count {
+                v.push(self.read_u2());
+            }
+            v
+        };
+        let fields_count = self.read_u2();
+        let fields = {
+            let mut v = vec![];
+            for _ in 0..fields_count {
+                let access_flags = self.read_u2();
+                let name_index = self.read_u2();
+                let descriptor_index = self.read_u2();
+                let attributes_count = self.read_u2();
+                let attributes = {
+                    let mut v = vec![];
+                    for _ in 0..attributes_count {
+                        v.push(self.read_attribute());
+                    }
+                    v
+                };
+                v.push(FieldInfo {
+                    access_flags,
+                    name_index,
+                    descriptor_index,
+                    attributes_count,
+                    attributes,
+                });
+            }
+            v
+        };
+        let methods_count = self.read_u2();
+        let methods = {
+            let mut v = vec![];
+            for _ in 0..methods_count {
+                let access_flags = self.read_u2();
+                let name_index = self.read_u2();
+                let descriptor_index = self.read_u2();
+                let attributes_count = self.read_u2();
+                let attributes = {
+                    let mut v = vec![];
+                    for _ in 0..attributes_count {
+                        v.push(self.read_attribute());
+                    }
+                    v
+                };
+                v.push(MethodInfo {
+                    access_flags,
+                    name_index,
+                    descriptor_index,
+                    attributes_count,
+                    attributes,
+                });
+            }
+            v
+        };
+        let attributes_count = self.read_u2();
+        let attributes = {
+            let mut v = vec![];
+            for _ in 0..attributes_count {
+                v.push(self.read_attribute());
+            }
+            v
+        };
         Some(ClassFile {
             minor_version,
             major_version,
             constant_pool_count,
             constant_pools,
+            access_flags,
+            this_class,
+            super_class,
+            interfaces_count,
+            interfaces,
+            fields_count,
+            fields,
+            methods_count,
+            methods,
+            attributes_count,
+            attributes,
         })
+    }
+
+    fn read_attribute(&mut self) -> AttributeInfo {
+        let attribute_name_index = self.read_u2();
+        let attribute_length = self.read_u4();
+        let info = {
+            let mut v = vec![];
+            for _ in 0..attribute_length {
+                v.push(self.read_u1());
+            }
+            v
+        };
+        AttributeInfo {
+            attribute_name_index,
+            attribute_length,
+            info,
+        }
     }
 
     fn read_constant_pool(&mut self) -> ConstantPool {
@@ -135,13 +270,14 @@ impl ClassFileReader {
             },
             1 => {
                 let length = self.read_u2();
-                let bytes = {
+                let bytes = std::string::String::from_utf8({
                     let mut v = vec![];
                     for _ in 0..length {
                         v.push(self.read_u1());
                     }
                     v
-                };
+                })
+                .unwrap();
                 Utf8 { length, bytes }
             }
             n => {
@@ -197,7 +333,7 @@ fn main() -> Result<(), std::io::Error> {
     );
     if classfile.is_some() {
         let classfile = classfile.unwrap();
-        println!("{:?}", &classfile);
+        dbg!(classfile);
     }
     Ok(())
 }
