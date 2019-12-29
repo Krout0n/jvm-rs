@@ -68,25 +68,25 @@ pub enum ConstantPool {
 
 #[derive(Debug)]
 pub struct ClassFile {
-    minor_version: u2,
-    major_version: u2,
-    constant_pool_count: u2,
-    constant_pools: Vec<ConstantPool>,
-    access_flags: u2,
-    this_class: u2,
-    super_class: u2,
-    interfaces_count: u2,
-    interfaces: Vec<u2>,
-    fields_count: u2,
-    fields: Vec<FieldInfo>,
-    methods_count: u2,
-    methods: Vec<MethodInfo>,
-    attributes_count: u2,
-    attributes: Vec<AttributeInfo>,
+    pub minor_version: u2,
+    pub major_version: u2,
+    pub constant_pool_count: u2,
+    pub constant_pools: Vec<ConstantPool>,
+    pub access_flags: u2,
+    pub this_class: u2,
+    pub super_class: u2,
+    pub interfaces_count: u2,
+    pub interfaces: Vec<u2>,
+    pub fields_count: u2,
+    pub fields: Vec<FieldInfo>,
+    pub methods_count: u2,
+    pub methods: Vec<MethodInfo>,
+    pub attributes_count: u2,
+    pub attributes: Vec<AttributeInfo>,
 }
 
 #[derive(Debug)]
-struct FieldInfo {
+pub struct FieldInfo {
     access_flags: u2,
     name_index: u2,
     descriptor_index: u2,
@@ -95,32 +95,36 @@ struct FieldInfo {
 }
 
 #[derive(Debug)]
-struct AttributeInfo {
-    attribute_name_index: u2,
-    attribute_length: u4,
+pub struct AttributeInfo {
+    pub attribute_name_index: u2,
+    pub attribute_length: u4,
     // u1 info[attribute_length];
-    info: Vec<u1>,
+    pub info: Vec<u1>,
 }
 
 #[derive(Debug)]
-struct MethodInfo {
-    access_flags: u2,
-    name_index: u2,
-    descriptor_index: u2,
-    attributes_count: u2,
-    attributes: Vec<AttributeInfo>,
+pub struct MethodInfo {
+    pub access_flags: u2,
+    pub name_index: u2,
+    pub descriptor_index: u2,
+    pub attributes_count: u2,
+    pub attributes: Vec<AttributeInfo>,
 }
 
 #[derive(Debug)]
-struct ClassFileReader {
+pub struct ClassFileReader {
     reader: BufReader<File>,
 }
-
 
 impl ClassFile {
     pub fn new(filename: &str) -> Result<Self, std::io::Error> {
         let mut reader = ClassFileReader::new(filename)?;
         if let Some(classfile) = reader.read() {
+            /* TODO-Low:
+                - Format checking.
+                - Check the file satisfies constraints or not.
+                - Verification.
+            */
             Ok(classfile)
         } else {
             unimplemented!()
@@ -130,7 +134,7 @@ impl ClassFile {
 
 impl ClassFileReader {
     fn new(filename: &str) -> Result<Self, std::io::Error> {
-        let reader =  BufReader::new(File::open(filename)?);
+        let reader = BufReader::new(File::open(filename)?);
         Ok(Self { reader })
     }
 
@@ -328,4 +332,3 @@ impl ClassFileReader {
         }
     }
 }
-
