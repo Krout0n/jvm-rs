@@ -104,11 +104,59 @@ pub struct AttributeInfo {
 
 #[derive(Debug)]
 pub struct MethodInfo {
-    pub access_flags: u2,
+    pub access_flags: AccessFlags,
     pub name_index: u2,
     pub descriptor_index: u2,
     pub attributes_count: u2,
     pub attributes: Vec<AttributeInfo>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AccessFlagKind {
+    PUBLIC,
+    PRIVATE,
+    PROTECTED,
+    STATIC,
+    FINAL,
+    SYNCHRONIZED,
+    BRIDGE,
+    VARARGS,
+    NATIVE,
+    ABSTRACT,
+    STRICT,
+    SYNTHETIC,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AccessFlags(Vec<AccessFlagKind>);
+
+impl From<u2> for AccessFlags {
+    fn from(n: u2) -> Self {
+        use AccessFlagKind::*;
+        let mut v = vec![];
+        let mut n = n;
+        macro_rules! push {
+            ($value: expr, $kind: ident) => {
+                if n >= $value {
+                    v.push($kind);
+                    n -= $value;
+                }
+            };
+        }
+        push!(0x1000, SYNTHETIC);
+        push!(0x0800, STRICT);
+        push!(0x0400, ABSTRACT);
+        push!(0x0100, NATIVE);
+        push!(0x0080, VARARGS);
+        push!(0x0040, BRIDGE);
+        push!(0x0020, SYNCHRONIZED);
+        push!(0x0010, FINAL);
+        push!(0x0008, STATIC);
+        push!(0x0004, PROTECTED);
+        push!(0x0002, PRIVATE);
+        push!(0x0001, PUBLIC);
+        Self(v)
+    }
 }
 
 #[derive(Debug)]
@@ -194,7 +242,7 @@ impl ClassFileReader {
         let methods = {
             let mut v = vec![];
             for _ in 0..methods_count {
-                let access_flags = self.read_u2();
+                let access_flags = AccessFlags::from(self.read_u2());
                 let name_index = self.read_u2();
                 let descriptor_index = self.read_u2();
                 let attributes_count = self.read_u2();
@@ -305,7 +353,7 @@ impl ClassFileReader {
 
     fn read_u1(&mut self) -> u1 {
         let mut buf = [0u8; 1];
-        match self.reader.read(&mut buf) {
+        match self.reader.read_exact(&mut buf) {
             Ok(_) => buf[0],
             _ => unimplemented!(),
         }
@@ -313,7 +361,7 @@ impl ClassFileReader {
 
     fn read_u2(&mut self) -> u2 {
         let mut buf = [0u8; 2];
-        match self.reader.read(&mut buf) {
+        match self.reader.read_exact(&mut buf) {
             Ok(_) => ((buf[0] as u2) << 8) + buf[1] as u2,
             _ => unimplemented!(),
         }
@@ -321,7 +369,7 @@ impl ClassFileReader {
 
     fn read_u4(&mut self) -> u4 {
         let mut buf = [0u8; 4];
-        match self.reader.read(&mut buf) {
+        match self.reader.read_exact(&mut buf) {
             Ok(_) => {
                 ((buf[0] as u4) << 24)
                     + ((buf[1] as u4) << 16)
