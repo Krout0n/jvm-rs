@@ -94,12 +94,12 @@ pub struct FieldInfo {
     attributes: Vec<AttributeInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct AttributeInfo {
     pub attribute_name_index: u2,
     pub attribute_length: u4,
     // u1 info[attribute_length];
-    pub info: Vec<u1>,
+    pub info: AttributeInfoKind,
 }
 
 #[derive(Debug)]
@@ -129,6 +129,38 @@ pub enum AccessFlagKind {
 
 #[derive(Debug, PartialEq)]
 pub struct AccessFlags(Vec<AccessFlagKind>);
+
+#[derive(Debug, PartialEq)]
+pub enum AttributeInfoKind {
+    Code {
+        max_stack: u2,
+        max_locals: u2,
+        code_length: u4,
+        code: Vec<u1>,
+        exception_table_length: u2,
+        exception_table: Vec<ExceptionTable>,
+        attributes_count: u2,
+        attributes: Vec<AttributeInfo>,
+    },
+    LineNumberTable {
+        line_number_table_length: u2,
+        line_number_table: Vec<LineNumberTable>,
+    },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct LineNumberTable {
+    start_pc: u2,
+    line_number: u2,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExceptionTable {
+    start_pc: u2,
+    end_pc: u2,
+    handler_pc: u2,
+    catch_type: u2,
+}
 
 impl From<u2> for AccessFlags {
     fn from(n: u2) -> Self {
@@ -187,6 +219,15 @@ impl ClassFileReader {
     }
 
     fn read(&mut self) -> Option<ClassFile> {
+        macro_rules! read_n_times {
+            ($n: expr, $read_function: ident) => {{
+                let mut v = vec![];
+                for _ in 0..$n {
+                    v.push(self.$read_function());
+                }
+                v
+            }};
+        }
         let magic = self.read_u4();
         if magic != 0xCAFEBABE {
             return None;
@@ -194,25 +235,12 @@ impl ClassFileReader {
         let minor_version = self.read_u2();
         let major_version = self.read_u2();
         let constant_pool_count = self.read_u2();
-        let constant_pools = {
-            let mut v = vec![];
-            for _ in 0..(constant_pool_count - 1) {
-                let pool = self.read_constant_pool();
-                v.push(pool);
-            }
-            v
-        };
+        let constant_pools = read_n_times!(constant_pool_count - 1, read_constant_pool);
         let access_flags = self.read_u2();
         let this_class = self.read_u2();
         let super_class = self.read_u2();
         let interfaces_count = self.read_u2();
-        let interfaces = {
-            let mut v = vec![];
-            for _ in 0..interfaces_count {
-                v.push(self.read_u2());
-            }
-            v
-        };
+        let interfaces = read_n_times!(interfaces_count, read_u2);
         let fields_count = self.read_u2();
         let fields = {
             let mut v = vec![];
@@ -224,7 +252,7 @@ impl ClassFileReader {
                 let attributes = {
                     let mut v = vec![];
                     for _ in 0..attributes_count {
-                        v.push(self.read_attribute());
+                        v.push(self.read_attribute(&constant_pools));
                     }
                     v
                 };
@@ -248,8 +276,9 @@ impl ClassFileReader {
                 let attributes_count = self.read_u2();
                 let attributes = {
                     let mut v = vec![];
+                    println!("methods: attributes");
                     for _ in 0..attributes_count {
-                        v.push(self.read_attribute());
+                        v.push(self.read_attribute(&constant_pools));
                     }
                     v
                 };
@@ -263,11 +292,12 @@ impl ClassFileReader {
             }
             v
         };
+        println!("attributes_count");
         let attributes_count = self.read_u2();
         let attributes = {
             let mut v = vec![];
             for _ in 0..attributes_count {
-                v.push(self.read_attribute());
+                v.push(self.read_attribute(&constant_pools));
             }
             v
         };
@@ -290,15 +320,93 @@ impl ClassFileReader {
         })
     }
 
-    fn read_attribute(&mut self) -> AttributeInfo {
+    fn read_attribute(&mut self, constant_pools: &[ConstantPool]) -> AttributeInfo {
+        use ConstantPool::*;
         let attribute_name_index = self.read_u2();
         let attribute_length = self.read_u4();
-        let info = {
-            let mut v = vec![];
-            for _ in 0..attribute_length {
-                v.push(self.read_u1());
+        dbg!((attribute_name_index, attribute_length));
+        let name = match constant_pools
+            .get(attribute_name_index as usize - 1)
+            .unwrap()
+        {
+            Utf8 { bytes, .. } => bytes,
+            _ => unreachable!(),
+        };
+        let info = match name.as_str() {
+            "Code" => {
+                let max_stack = self.read_u2();
+                let max_locals = self.read_u2();
+                let code_length = self.read_u4();
+                let code = {
+                    let mut v = vec![];
+                    for _ in 0..code_length {
+                        let c = self.read_u1();
+                        // println!("{:#02x}", c);
+                        v.push(c);
+                    }
+                    v
+                };
+                let exception_table_length = self.read_u2();
+                let exception_table = {
+                    let mut v = vec![];
+                    for _ in 0..exception_table_length {
+                        let start_pc = self.read_u2();
+                        let end_pc = self.read_u2();
+                        let handler_pc = self.read_u2();
+                        let catch_type = self.read_u2();
+                        v.push(ExceptionTable {
+                            start_pc,
+                            end_pc,
+                            handler_pc,
+                            catch_type,
+                        });
+                    }
+                    v
+                };
+                let attributes_count = self.read_u2();
+                let attributes = {
+                    let mut v = vec![];
+                    for _ in 0..attributes_count {
+                        let attr = dbg!(self.read_attribute(constant_pools));
+                        v.push(attr);
+                    }
+                    v
+                };
+                AttributeInfoKind::Code {
+                    max_stack,
+                    max_locals,
+                    code_length,
+                    code,
+                    exception_table_length,
+                    exception_table,
+                    attributes_count,
+                    attributes,
+                }
             }
-            v
+            "LineNumberTable" => {
+                let line_number_table_length = self.read_u2();
+                let line_number_table = {
+                    let mut v = vec![];
+                    for _ in 0..line_number_table_length {
+                        let start_pc = self.read_u2();
+                        let line_number = self.read_u2();
+                        v.push(LineNumberTable {
+                            start_pc,
+                            line_number,
+                        });
+                    }
+                    v
+                };
+                dbg!(&line_number_table);
+                AttributeInfoKind::LineNumberTable {
+                    line_number_table_length,
+                    line_number_table,
+                }
+            }
+            _ => {
+                dbg!(name);
+                unimplemented!()
+            }
         };
         AttributeInfo {
             attribute_name_index,
@@ -363,7 +471,10 @@ impl ClassFileReader {
         let mut buf = [0u8; 2];
         match self.reader.read_exact(&mut buf) {
             Ok(_) => ((buf[0] as u2) << 8) + buf[1] as u2,
-            _ => unimplemented!(),
+            err => {
+                dbg!(err);
+                unimplemented!()
+            }
         }
     }
 

@@ -2,6 +2,8 @@ extern crate jvm_rs;
 
 use jvm_rs::classfile::ClassFile;
 
+fn show_method(classfile: &ClassFile) {}
+
 fn main() -> Result<(), std::io::Error> {
     let args = std::env::args();
     if args.len() != 2 {
@@ -13,15 +15,16 @@ fn main() -> Result<(), std::io::Error> {
     println!("{} is Java class file? : {:?}", filename, classfile.is_ok());
     if classfile.is_ok() {
         let classfile = classfile.unwrap();
-        let idx = classfile
-            .methods
-            .get(0)
-            .unwrap()
-            .attributes
-            .get(0)
-            .unwrap()
-            .attribute_name_index as usize;
-        dbg!(&classfile.constant_pools.get(idx));
+        dbg!(classfile.methods);
+        // let idx = classfile
+        //     .methods
+        //     .get(0)
+        //     .unwrap()
+        //     .attributes
+        //     .get(0)
+        //     .unwrap()
+        //     .attribute_name_index as usize;
+        // dbg!(&classfile.constant_pools.get(idx));
         // dbg!(&classfile);
         // let idx = classfile.attributes.get(0).unwrap().attribute_name_index as usize;
         // dbg!(&classfile.constant_pools.get(idx));
