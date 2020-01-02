@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types)]
 
+use crate::instruction;
+use instruction::{Instruction, InstructionKind};
 use std::fs::File;
 use std::io::{BufReader, Read};
 
@@ -136,7 +138,7 @@ pub enum AttributeInfoKind {
         max_stack: u2,
         max_locals: u2,
         code_length: u4,
-        code: Vec<u1>,
+        code: Vec<Instruction>,
         exception_table_length: u2,
         exception_table: Vec<ExceptionTable>,
         attributes_count: u2,
@@ -146,6 +148,8 @@ pub enum AttributeInfoKind {
         line_number_table_length: u2,
         line_number_table: Vec<LineNumberTable>,
     },
+    // u2 sourcefile_index;
+    SourceFile(u2),
 }
 
 #[derive(Debug, PartialEq)]
@@ -324,7 +328,6 @@ impl ClassFileReader {
         use ConstantPool::*;
         let attribute_name_index = self.read_u2();
         let attribute_length = self.read_u4();
-        dbg!((attribute_name_index, attribute_length));
         let name = match constant_pools
             .get(attribute_name_index as usize - 1)
             .unwrap()
@@ -339,11 +342,25 @@ impl ClassFileReader {
                 let code_length = self.read_u4();
                 let code = {
                     let mut v = vec![];
-                    for _ in 0..code_length {
-                        let c = self.read_u1();
-                        // println!("{:#02x}", c);
-                        v.push(c);
+                    let mut eaten = 0;
+                    while eaten < code_length {
+                        let kind = InstructionKind::from(self.read_u1());
+                        eaten += 1;
+                        let argc = kind.argc();
+                        let mut args = vec![];
+                        if argc == -1 {
+                            unimplemented!()
+                        } else {
+                            for _ in 0..argc {
+                                args.push(self.read_u1());
+                                eaten += 1;
+                            }
+                        }
+                        v.push(dbg!(Instruction { kind, args }));
                     }
+                    // for _ in 0..code_length {
+                    //     let code = self.read_u1();
+                    // }
                     v
                 };
                 let exception_table_length = self.read_u2();
@@ -397,12 +414,12 @@ impl ClassFileReader {
                     }
                     v
                 };
-                dbg!(&line_number_table);
                 AttributeInfoKind::LineNumberTable {
                     line_number_table_length,
                     line_number_table,
                 }
             }
+            "SourceFile" => AttributeInfoKind::SourceFile(self.read_u2()),
             _ => {
                 dbg!(name);
                 unimplemented!()
