@@ -1,8 +1,6 @@
 extern crate jvm_rs;
 
-use jvm_rs::classfile::ClassFile;
-
-fn show_method(classfile: &ClassFile) {}
+use jvm_rs::class::classfile::ClassFile;
 
 fn main() -> Result<(), std::io::Error> {
     let args = std::env::args();

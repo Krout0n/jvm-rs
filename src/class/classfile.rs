@@ -1,7 +1,11 @@
 #![allow(non_camel_case_types)]
 
-use crate::instruction;
-use instruction::{Instruction, InstructionKind};
+use super::access_flags::*;
+use super::attribute::*;
+use super::constantpool::*;
+use super::field::FieldInfo;
+use super::instruction::{Instruction, InstructionKind};
+use super::method::MethodInfo;
 use std::fs::File;
 use std::io::{BufReader, Read};
 
@@ -9,64 +13,7 @@ type u1 = u8;
 type u2 = u16;
 type u4 = u32;
 
-#[derive(Debug, PartialEq)]
-pub enum RefKind {
-    Field = 0x9,
-    Method,
-    Interface,
-}
-
 use RefKind::*;
-
-impl From<u8> for RefKind {
-    fn from(a: u8) -> Self {
-        match a {
-            0x9 => Field,
-            0xA => Method,
-            0xB => Interface,
-            _ => {
-                eprintln!("{}", a);
-                unreachable!()
-            }
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ConstantPool {
-    // u1 tag; u2 name_index;
-    // The value of the name_index item must be a valid index into the constant_pool table.
-    /*
-        #2 = Class              #4             // java/lang/Object
-        ...
-        #4 = Utf8               java/lang/Object
-    */
-    Class(u2),
-    FieldRef {
-        tag: RefKind,
-        class_index: u2,
-        name_and_type_index: u2,
-    },
-    String(u2),
-    Integer(u4), // bytes
-    Float(u4),   // bytes
-    Long {
-        high: u4,
-        low: u4,
-    },
-    Double {
-        high: u4,
-        low: u4,
-    },
-    NameAndType {
-        name_index: u2,
-        descriptor_index: u2,
-    },
-    Utf8 {
-        length: u2,
-        bytes: String,
-    },
-}
 
 #[derive(Debug)]
 pub struct ClassFile {
@@ -85,114 +32,6 @@ pub struct ClassFile {
     pub methods: Vec<MethodInfo>,
     pub attributes_count: u2,
     pub attributes: Vec<AttributeInfo>,
-}
-
-#[derive(Debug)]
-pub struct FieldInfo {
-    access_flags: u2,
-    name_index: u2,
-    descriptor_index: u2,
-    attributes_count: u2,
-    attributes: Vec<AttributeInfo>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct AttributeInfo {
-    pub attribute_name_index: u2,
-    pub attribute_length: u4,
-    // u1 info[attribute_length];
-    pub info: AttributeInfoKind,
-}
-
-#[derive(Debug)]
-pub struct MethodInfo {
-    pub access_flags: AccessFlags,
-    pub name_index: u2,
-    pub descriptor_index: u2,
-    pub attributes_count: u2,
-    pub attributes: Vec<AttributeInfo>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AccessFlagKind {
-    PUBLIC,
-    PRIVATE,
-    PROTECTED,
-    STATIC,
-    FINAL,
-    SYNCHRONIZED,
-    BRIDGE,
-    VARARGS,
-    NATIVE,
-    ABSTRACT,
-    STRICT,
-    SYNTHETIC,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct AccessFlags(Vec<AccessFlagKind>);
-
-#[derive(Debug, PartialEq)]
-pub enum AttributeInfoKind {
-    Code {
-        max_stack: u2,
-        max_locals: u2,
-        code_length: u4,
-        code: Vec<Instruction>,
-        exception_table_length: u2,
-        exception_table: Vec<ExceptionTable>,
-        attributes_count: u2,
-        attributes: Vec<AttributeInfo>,
-    },
-    LineNumberTable {
-        line_number_table_length: u2,
-        line_number_table: Vec<LineNumberTable>,
-    },
-    // u2 sourcefile_index;
-    SourceFile(u2),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct LineNumberTable {
-    start_pc: u2,
-    line_number: u2,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ExceptionTable {
-    start_pc: u2,
-    end_pc: u2,
-    handler_pc: u2,
-    catch_type: u2,
-}
-
-impl From<u2> for AccessFlags {
-    fn from(n: u2) -> Self {
-        use AccessFlagKind::*;
-        let mut v = vec![];
-        let mut n = n;
-        macro_rules! push {
-            ($value: expr, $kind: ident) => {
-                if n >= $value {
-                    v.push($kind);
-                    n -= $value;
-                }
-            };
-        }
-        push!(0x1000, SYNTHETIC);
-        push!(0x0800, STRICT);
-        push!(0x0400, ABSTRACT);
-        push!(0x0100, NATIVE);
-        push!(0x0080, VARARGS);
-        push!(0x0040, BRIDGE);
-        push!(0x0020, SYNCHRONIZED);
-        push!(0x0010, FINAL);
-        push!(0x0008, STATIC);
-        push!(0x0004, PROTECTED);
-        push!(0x0002, PRIVATE);
-        push!(0x0001, PUBLIC);
-        Self(v)
-    }
 }
 
 #[derive(Debug)]
