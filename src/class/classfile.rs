@@ -2,7 +2,7 @@
 
 use super::access_flags::*;
 use super::attribute::*;
-use super::constantpool::*;
+use super::constant_pool::*;
 use super::field::FieldInfo;
 use super::instruction::{Instruction, InstructionKind};
 use super::method::MethodInfo;
