@@ -5,13 +5,13 @@
 
 type u1 = u8;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Instruction {
     pub kind: InstructionKind,
     pub args: Vec<u1>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InstructionKind {
     // Auto generated.
     // Load reference from array

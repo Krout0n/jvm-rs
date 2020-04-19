@@ -1,6 +1,6 @@
 use super::common_type::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RefKind {
     Field = 0x9,
     Method,
@@ -23,7 +23,7 @@ impl From<u8> for RefKind {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ConstantPool {
     // u1 tag; u2 name_index;
     // The value of the name_index item must be a valid index into the constant_pool table.

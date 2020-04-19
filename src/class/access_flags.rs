@@ -1,6 +1,6 @@
 use super::common_type::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AccessFlagKind {
     PUBLIC,
     PRIVATE,
@@ -16,7 +16,7 @@ pub enum AccessFlagKind {
     SYNTHETIC,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AccessFlags(Vec<AccessFlagKind>);
 
 impl From<u2> for AccessFlags {

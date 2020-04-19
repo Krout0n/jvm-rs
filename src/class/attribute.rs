@@ -1,7 +1,7 @@
 use super::common_type::*;
 use super::instruction::Instruction;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AttributeInfoKind {
     Code {
         max_stack: u2,
@@ -21,13 +21,13 @@ pub enum AttributeInfoKind {
     SourceFile(u2),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LineNumberTable {
     pub start_pc: u2,
     pub line_number: u2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ExceptionTable {
     pub start_pc: u2,
     pub end_pc: u2,
@@ -35,7 +35,7 @@ pub struct ExceptionTable {
     pub catch_type: u2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AttributeInfo {
     pub attribute_name_index: u2,
     pub attribute_length: u4,
