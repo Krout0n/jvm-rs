@@ -14,7 +14,7 @@ fn main() -> Result<(), std::io::Error> {
     println!("{} is Java class file? : {:?}", filename, classfile.is_ok());
     if classfile.is_ok() {
         let classfile = classfile.unwrap();
-        dbg!(VM::new(classfile.constant_pools));
+        dbg!(VM::from(classfile).exec());
     }
     Ok(())
 }
