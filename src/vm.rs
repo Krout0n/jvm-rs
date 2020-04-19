@@ -4,14 +4,12 @@ use ConstantPool::*;
 #[derive(Debug)]
 pub struct VM {
     constant_pools: Vec<ConstantPool>,
-    methods: Vec<MethodInfo>,
 }
 
 impl From<ClassFile> for VM {
     fn from(c: ClassFile) -> Self {
         return Self {
             constant_pools: c.constant_pools,
-            methods: c.methods,
         };
     }
 }
@@ -27,12 +25,18 @@ impl VM {
             _ => unreachable!(),
         }
     }
-    pub fn exec(&mut self) -> Option<&MethodInfo> {
-        for method in self.methods.iter() {
+    pub fn exec(&mut self, methods: Vec<MethodInfo>) -> Option<&MethodInfo> {
+        let mut main = 0;
+        for (i, method) in methods.iter().enumerate() {
             if dbg!(self.get_method_name(method)) == "main" {
-                return Some(method);
+                main = i;
             }
         }
+        self.exec_method(&methods.get(main).unwrap().clone());
         None
+    }
+
+    fn exec_method(&mut self, method: &MethodInfo) {
+        dbg!(method);
     }
 }

@@ -14,7 +14,8 @@ fn main() -> Result<(), std::io::Error> {
     println!("{} is Java class file? : {:?}", filename, classfile.is_ok());
     if classfile.is_ok() {
         let classfile = classfile.unwrap();
-        dbg!(VM::from(classfile).exec());
+        let methods = classfile.methods.clone();
+        VM::from(classfile).exec(methods);
     }
     Ok(())
 }
